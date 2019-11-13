@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include "bvfs_constants.h"
 #include "util.h"
 
 /*
@@ -33,14 +34,6 @@
  *       doesn't already exist.
  */
 
-#define BLOCK_SIZE 512
-
-#define PARTITION_BLOCK_COUNT 16384
-#define PARTITION_SIZE (BLOCK_SIZE * PARTITION_BLOCK_COUNT)
-
-#define FILE_BLOCK_COUNT 128
-#define MAX_FILE_SIZE = (BLOCK_SIZE * FILE_BLOCK_COUNT)
-#define MAX_NUM_FILES 256
 
 
 // Prototypes
@@ -83,9 +76,11 @@ FILE* partition_fd = NULL;
 int bv_init(const char* partitionName) {
     if (access(partitionName, F_OK) != -1) {
         // Exists
+        LOG("File exists\n");
     } else {
+        LOG("Creating file\n");
         // Needs to be created
-        file_create(partitionName, PARTITION_SIZE);
+        filesystem_create(partitionName, PARTITION_SIZE);
     }
 /*
     int pFD = open(partitionName, O_CREAT | O_RDWR | O_EXCL, 0644);
