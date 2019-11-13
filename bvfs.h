@@ -11,6 +11,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include "util.h"
+
 /*
  * [Requirements / Limitations]
  *   Partition/Block info
@@ -79,6 +81,13 @@ FILE* partition_fd = NULL;
  *           etc.). Also, print a meaningful error to stderr prior to returning.
  */
 int bv_init(const char* partitionName) {
+    if (access(partitionName, F_OK) != -1) {
+        // Exists
+    } else {
+        // Needs to be created
+        file_create(partitionName, PARTITION_SIZE);
+    }
+/*
     int pFD = open(partitionName, O_CREAT | O_RDWR | O_EXCL, 0644);
     if (pFD < 0) {
         if (errno == EEXIST) {
@@ -92,12 +101,8 @@ int bv_init(const char* partitionName) {
 
     } else {
         // File did not previously exist but it does now. Write data to it
-        printf("Partition size: %d", PARTITION_SIZE);
-        lseek(pFD, 0, SEEK_END);
-        int i = 33;
-        write(pFD, &i, 1);
-        printf("Created File\n");
     }
+    */
 }
 
 
