@@ -8,6 +8,7 @@ int main() {
     bv_init(name);
     
     open_file_system(name);
+    /*
 
     char nums[BLOCK_SIZE];
     for (int i = 0; i < BLOCK_SIZE; ++i) {
@@ -19,15 +20,14 @@ int main() {
 
     Block b = block_read(0);
     for (int i = 0; i < BLOCK_SIZE; ++i) {
-        /*
         if (nums[i] != i) {
             printf("not equal: %d = %d\n", i, nums[i]);
         } else {
             printf("equal: %d = %d\n", i, nums[i]);
         }
-        */
     }
 
+*/
     close(file_system);
 
   return 0;

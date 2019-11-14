@@ -81,6 +81,21 @@ Block block_read(int block_id) {
     return block;
 }
 
+unsigned short get_free_block_id() {
+    // Walk along the superblock and find a indirection block 
+    Block superblock = block_read(SUPERBLOCK_ID);
+    for (unsigned short i = 0; i < 256; ++i) {
+        if (superblock[i] != 0) {
+            // We found a valid indirection block
+            // Navigate through indirection to see if there's an address to use
+
+        }
+    }
+
+    // Cleanup memory (superblock)
+    free(superblock);
+}
+
 void filesystem_create(const char* name, int size) {
     open_file_system(name);
 
@@ -94,19 +109,38 @@ void filesystem_create(const char* name, int size) {
     block_write(&block, SUPERBLOCK_ID);
 
     // TODO: Prepare superblock
-    char superblock[BLOCK_SIZE];
-    pos = 0;
-    for (int i = 2; i < BLOCK_SIZE; ++i) {
-        superblock[pos++] = i;
+    unsigned short superblock[BLOCK_SIZE];
+    // Keep building blocks until we've encountered all addresses
+
+    unsigned short currentBlock[256]; // The block we're filling with addresses
+    int currentBlockId = 2;
+    int currPos = 0; // position in currentBlock
+    int superPos = 0;
+
+    LOG("Preparing superblock\n");
+    for (unsigned short i = 3; i < BLOCK_COUNT; ++i) {
+        if (currPos == 256) {
+            LOG("Block prepared, adding to superblock\n");
+            // Write current block and get a new one
+            block_write(currentBlock, currentBlockId);
+            superblock[superPos++] = currentBlockId;
+
+            currentBlockId = i++; 
+            currPos = 0;
+            // Check if this goes past end
+            if (currentBlockId == BLOCK_COUNT) {
+                break;
+            }
+        }
+        LOG("Block %hu referencing %hu\n", currentBlockId, i);
+        currentBlock[currPos++] = i;
     }
 
-    fs_seek(SUPERBLOCK_ID);
+    // fs_seek(SUPERBLOCK_ID);
     block_write(&superblock, SUPERBLOCK_ID);
-
-
+    LOG("Superblock written\n");
 
     close(file_system);
 }
-
 
 #endif /* UTIL_H */
