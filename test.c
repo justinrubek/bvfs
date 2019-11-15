@@ -8,6 +8,10 @@ int main() {
     bv_init(name);
     
     open_file_system(name);
+
+    bv_open("pizza.txt", BV_RDONLY);
+    bv_open("pizza2.txt", BV_RDONLY);
+    bv_open("pizza3.txt", BV_RDONLY);
     /*
 
     char nums[BLOCK_SIZE];
@@ -28,6 +32,7 @@ int main() {
     }
 
 */
+    bv_destroy();
     close(file_system);
 
   return 0;

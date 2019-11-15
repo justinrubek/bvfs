@@ -10,9 +10,11 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <stdbool.h>
 
 #include "bvfs_constants.h"
 #include "util.h"
+
 
 /*
  * [Requirements / Limitations]
@@ -77,27 +79,18 @@ int bv_init(const char* partitionName) {
     if (access(partitionName, F_OK) != -1) {
         // Exists
         LOG("File exists\n");
+        open_file_system(partitionName);
+        // TODO: Check if failed to open file
+        printf("%d\n", file_system);
     } else {
         LOG("Creating file\n");
         // Needs to be created
         filesystem_create(partitionName, PARTITION_SIZE);
+        // TODO: Check if failed to create filesystem
+        printf("%d\n", file_system);
     }
-/*
-    int pFD = open(partitionName, O_CREAT | O_RDWR | O_EXCL, 0644);
-    if (pFD < 0) {
-        if (errno == EEXIST) {
-            // File already exists. Open it and read info (integer) back
-            pFD = open(partitionName, O_CREAT | O_RDWR , S_IRUSR | S_IWUSR);
-        }
-        else {
-            // Something bad must have happened... check errno?
-            printf("Errno: %d", errno);
-        }
 
-    } else {
-        // File did not previously exist but it does now. Write data to it
-    }
-    */
+    return 0;
 }
 
 
@@ -119,6 +112,8 @@ int bv_init(const char* partitionName) {
  *           returning.
  */
 int bv_destroy() {
+    free_superblock();
+    close(file_system);
 }
 
 
@@ -154,7 +149,39 @@ int BV_WTRUNC = 2;
  *        -1 if some kind of failure occurred. Also, print a meaningful error to
  *           stderr prior to returning.
  */
+
+
 int bv_open(const char *fileName, int mode) {
+    // Check if file exists
+    if (file_exists(fileName) == false) {
+        LOG("File %s does not exist", fileName);
+        // If not, create it
+        // Get a block to serve as the inode
+        unsigned short id = get_free_block_id(); 
+        char block[BLOCK_SIZE];
+        LOG("Creating Inode on block %hu", id);
+        create_inode(block, fileName);
+
+        unsigned short* inodes = get_inodes();
+        for (unsigned short i = 0; i < 256; ++i) {
+            if (inodes[i] == 0) {
+                inodes[i] = id;
+                break;
+            }
+            if (i == 256) {
+            // TODO: Failed to find a spot, too many files already
+            }
+        }
+        inodes_write();
+
+        block_write(block, id);
+
+        // Place the inode id into the inode array
+
+    } else {
+        LOG("File %s does exist", fileName);
+
+    }
 }
 
 

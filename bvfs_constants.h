@@ -11,5 +11,7 @@
 #define MAX_FILE_SIZE = (BLOCK_SIZE * FILE_BLOCK_COUNT)
 #define MAX_NUM_FILES 256
 
+#define MAX_FILE_NAME_LEN 32
+
  
 #endif /* BVFS_CONSTANTS_H */

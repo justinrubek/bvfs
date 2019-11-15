@@ -14,12 +14,45 @@
 #define LOG(...) printf(__VA_ARGS__)
 
 #define SUPERBLOCK_ID 0
+#define INODE_LIST_ID 1
 
-typedef void* Block;
+typedef struct INode {
+    char name[MAX_FILE_NAME_LEN];
+    unsigned short file_size;
+    unsigned short blocks[FILE_BLOCK_COUNT];
+} INode;
+
+void create_inode(void* buf, const char* name) {
+    INode* inode = (INode*)buf; 
+    strncpy(inode->name, name, MAX_FILE_NAME_LEN);
+
+    inode->file_size = 0;
+    for (int i = 0; i < FILE_BLOCK_COUNT; ++i) {
+        inode->blocks[i] = 0;
+    }
+}
+
+typedef char* Block;
 
 int file_system = -1;
-void open_file_system(const char* name) {
+
+void zero_block(void* block) {
+    char* bytes = (char*) block;
+    for (int i = 0; i < BLOCK_SIZE; ++i) {
+        bytes[i] = 0;
+    }
+}
+
+// Create the partition when it doesn't exist
+void init_file_system(const char* name) {
     file_system = open(name, O_RDWR | O_CREAT | O_EXCL, 0644);
+    // TODO: Report error
+}
+
+// Open an existing partition
+void open_file_system(const char* name) {
+    file_system = open(name, O_RDWR);
+    // TODO: Report error
 }
 
 int block_position(int block_id) {
@@ -37,7 +70,7 @@ int fs_seek(int block_id) {
     return res;
 }
 
-int block_write(Block block, int block_id) {
+int block_write(void* block, int block_id) {
     // Seek to the position in our fs
     int res = fs_seek(block_id);
 
@@ -65,6 +98,7 @@ Block block_read(int block_id) {
     }
     // Allocate memory for the block 
     void* block = malloc(BLOCK_SIZE);
+    zero_block(block);
 
     // Read the data from disk
     int res = fs_seek(block_id);
@@ -81,38 +115,115 @@ Block block_read(int block_id) {
     return block;
 }
 
+Block superblock_global = NULL;
+// Retrieve the superblock. 
+// Allows us to share the block without worrying who needs to free memory
+Block get_superblock() {
+    // Check if we have the superblock currently loaded
+    if (superblock_global == NULL) {
+        // If not, load it into memory
+        superblock_global = block_read(SUPERBLOCK_ID);
+    }
+
+    // Finally, return it
+    return superblock_global;
+}
+
+void free_superblock() {
+    if (superblock_global == NULL) return;
+
+    free(superblock_global);
+    superblock_global = NULL;
+}
+
+Block inode_global = NULL;
+unsigned short* get_inodes() {
+    // Check if we have the inodes currently loaded
+    if (inode_global == NULL) {
+        // If not, load it into memory
+        inode_global = block_read(INODE_LIST_ID);
+    }
+
+    // Finally, return it
+    return inode_global;
+}
+
+void inodes_write() {
+    block_write(inode_global, INODE_LIST_ID);
+}
+
+void free_inode() {
+    if (inode_global == NULL) return;
+
+    free(inode_global);
+    inode_global = NULL;
+}
+
 unsigned short get_free_block_id() {
     // Walk along the superblock and find a indirection block 
-    Block superblock = block_read(SUPERBLOCK_ID);
+    Block superblock = get_superblock();
     for (unsigned short i = 0; i < 256; ++i) {
         if (superblock[i] != 0) {
             // We found a valid indirection block
             // Navigate through indirection to see if there's an address to use
-
+            unsigned short block_id = superblock[i];
+            Block block = block_read(block_id);
+            for (unsigned short j = 0; j < 256; ++j) {
+                if (block[j] != 0) {
+                    unsigned short id = block[j];
+                    block[j] = 0; // Ensure this block is not marked as free
+                    block_write(block, block_id);
+                    free(block);
+                    return id;
+                }
+            }
+            free(block);
         }
     }
 
-    // Cleanup memory (superblock)
-    free(superblock);
+    return -1;
+}
+
+bool file_exists(const char* name) {
+    // Walk through the inode list and see if there is a file matching
+    unsigned short* list = (unsigned short*) get_inodes();
+    for (int i = 0; i < 256; ++i) {
+        // Check if the inode is null
+        unsigned short block_id = list[i];
+        if (block_id == 0) {
+            continue;
+        }
+
+        // Load the block and check the filename
+        Block block = block_read(block_id);
+        INode* inode = (INode*) block;
+        if (strncmp(inode->name, name, MAX_FILE_NAME_LEN) == 0) {
+            free(block);
+            return true;
+        }
+
+        free(block);
+    }
+
+    return false;
 }
 
 void filesystem_create(const char* name, int size) {
-    open_file_system(name);
+    init_file_system(name);
 
     // Seek to end and place byte
     char block[BLOCK_SIZE];
-    int pos = 0;
-    for (int i = 0; i < BLOCK_SIZE; ++i) {
-        block[pos++] = 0;
-    }
+    zero_block(block);
     fs_seek(BLOCK_COUNT-1);
-    block_write(&block, SUPERBLOCK_ID);
+    block_write(block, SUPERBLOCK_ID);
 
-    // TODO: Prepare superblock
+    // Prepare superblock
     unsigned short superblock[BLOCK_SIZE];
+    zero_block((char*)superblock);
     // Keep building blocks until we've encountered all addresses
 
     unsigned short currentBlock[256]; // The block we're filling with addresses
+    zero_block((char*)currentBlock);
     int currentBlockId = 2;
     int currPos = 0; // position in currentBlock
     int superPos = 0;
@@ -127,20 +238,21 @@ void filesystem_create(const char* name, int size) {
 
             currentBlockId = i++; 
             currPos = 0;
+            zero_block((char*)currentBlock);
             // Check if this goes past end
             if (currentBlockId == BLOCK_COUNT) {
                 break;
             }
         }
+
         LOG("Block %hu referencing %hu\n", currentBlockId, i);
         currentBlock[currPos++] = i;
     }
 
-    // fs_seek(SUPERBLOCK_ID);
-    block_write(&superblock, SUPERBLOCK_ID);
+    block_write(superblock, SUPERBLOCK_ID);
     LOG("Superblock written\n");
 
-    close(file_system);
+    // close(file_system);
 }
 
 #endif /* UTIL_H */
