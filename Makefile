@@ -2,7 +2,7 @@
 EXE=test
 
 # Update with header files used. Recompiles when they change
-DEPS = bvfs.h util.h
+DEPS = bvfs.h util.h files.h
 
 # Update with code files used (replace '.c' with '.o')
 OBJ = $(EXE).o

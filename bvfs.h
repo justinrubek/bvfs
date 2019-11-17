@@ -14,6 +14,7 @@
 
 #include "bvfs_constants.h"
 #include "util.h"
+#include "files.h"
 
 
 /*
@@ -90,6 +91,8 @@ int bv_init(const char* partitionName) {
         printf("%d\n", file_system);
     }
 
+    init_file_records();
+
     return 0;
 }
 
@@ -114,6 +117,7 @@ int bv_init(const char* partitionName) {
 int bv_destroy() {
     free_superblock();
     free_inodes();
+    free_file_records();
     close(file_system);
 }
 
@@ -129,14 +133,25 @@ int bv_destroy() {
 
 int open_read_only(const char* fileName) {
     // Check if file exists
-    if (file_exists(fileName) == false) {
-        LOG("File %s does not exist", fileName);
+    int id = file_inode_id(fileName);
+    if (id == -1) {
+        LOG_ERROR("File %hu does not exist", id);
+    } 
+
+    file_open(id, true);
+
+    return id;
+}
+
+int open_writeable(const char* fileName, bool truncate) {
+    int id = file_inode_id(fileName);
+    if (id == -1) {
         // If not, create it
         // Get a block to serve as the inode
-        unsigned short id = get_free_block_id(); 
+        id = get_free_block_id(); 
         char block[BLOCK_SIZE];
-        LOG("Creating Inode on block %hu", id);
         create_inode(block, fileName);
+        block_write(block, id);
 
         // Find a place in the inode list
         unsigned short* inodes = get_inodes();
@@ -147,27 +162,20 @@ int open_read_only(const char* fileName) {
                 break;
             }
             if (i == 256) {
-            // TODO: Failed to find a spot, too many files already. write error to stderr
+                // TODO: Failed to find a spot, too many files already. write error to stderr
             }
         }
         inodes_write();
 
-        block_write(block, id);
-    } else {
-        LOG("File %s does exist", fileName);
-
     }
 
-}
+    file_open(id, false);
 
-// TODO: See bv_open
-int open_concat(const char* fileName) {
+    if (truncate) {
+        // TODO: Delete data from file
+    }
 
-}
-
-// TODO: See bv_open
-int open_truncate(const char* fileName) {
-
+    return id;
 }
 
 /*
@@ -199,16 +207,17 @@ int bv_open(const char *fileName, int mode) {
             return open_read_only(fileName);
             break;
         case BV_WCONCAT:
-            return open_concat(fileName);
+            open_writeable(fileName, false);
             break;
         case BV_WTRUNC:
-            return open_truncate(fileName);
+            open_writeable(fileName, true);
             break;
+
         default: 
             // TODO:
-           // eprintf("");
+            // eprintf("");
+            LOG_ERROR("Invalid mode specified\n");
             return -1;
-            
     }
 }
 
@@ -261,6 +270,7 @@ int bv_close(int bvfs_FD) {
  *           prior to returning.
  */
 int bv_write(int bvfs_FD, const void *buf, size_t count) {
+    return file_write(bvfs_FD, buf, count);
 }
 
 
@@ -280,7 +290,7 @@ int bv_write(int bvfs_FD, const void *buf, size_t count) {
  *   count: The number of bytes we intend to write to the buffer from the file.
  *
  * Return Value
- *   int: >=0 Value representing the number of bytes written to buf.
+ *   int: >=0 Value representing the number of bytes (read)written to buf.
  *        -1 if some kind of failure occurred (eg. the file is not currently
  *           opened via bv_open). Also, print a meaningful error to stderr
  *           prior to returning.

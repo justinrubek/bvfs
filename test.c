@@ -6,12 +6,15 @@ int main() {
     printf("%d\n", PARTITION_SIZE);
     const char* name = "partition.bvfs";
     bv_init(name);
-    
-    open_file_system(name);
 
-    bv_open("pizza.txt", BV_RDONLY);
-    bv_open("pizza2.txt", BV_RDONLY);
-    bv_open("pizza3.txt", BV_RDONLY);
+    int fd0 = bv_open("pizza.txt", BV_WCONCAT);
+    printf("Received fd: %d\n", fd0);
+
+    int fd1 = bv_open("pizza2.txt", BV_WCONCAT);
+    printf("Received fd: %d\n", fd1);
+
+    int fd2 = bv_open("pizza3.txt", BV_WCONCAT);
+    printf("Received fd: %d\n", fd2);
     /*
 
     char nums[BLOCK_SIZE];

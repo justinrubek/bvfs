@@ -12,13 +12,19 @@
 #include <string.h>
 
 #define LOG(...) printf(__VA_ARGS__)
+#define LOG_ERROR(...) fprintf(stderr, __VA_ARGS__)
 
 #define SUPERBLOCK_ID 0
 #define INODE_LIST_ID 1
 
+typedef unsigned short* PtrBlock;
+typedef unsigned short BlockID;
+
+
 typedef struct INode {
     char name[MAX_FILE_NAME_LEN];
-    unsigned short file_size;
+    unsigned short block_count;
+    unsigned short block_cursor; // Cursor of the farthest block
     unsigned short blocks[FILE_BLOCK_COUNT];
 } INode;
 
@@ -26,7 +32,8 @@ void create_inode(void* buf, const char* name) {
     INode* inode = (INode*)buf; 
     strncpy(inode->name, name, MAX_FILE_NAME_LEN);
 
-    inode->file_size = 0;
+    inode->block_count = 0;
+    inode->block_cursor = 0;
     for (int i = 0; i < FILE_BLOCK_COUNT; ++i) {
         inode->blocks[i] = 0;
     }
@@ -64,7 +71,7 @@ int fs_seek(int block_id) {
     int res = lseek(file_system, position, SEEK_SET);
 
     if (res != position) {
-        LOG("Failed to seek\n");
+        LOG_ERROR("Failed to seek\n");
         return -1;
     } 
     return res;
@@ -82,7 +89,7 @@ int block_write(void* block, int block_id) {
     // Write the data
     res = write(file_system, block, BLOCK_SIZE);
     if (res != BLOCK_SIZE) {
-        LOG("Failed to write block %d", block_id);
+        LOG_ERROR("Failed to write block %d", block_id);
         return errno;
     }
 
@@ -103,12 +110,12 @@ Block block_read(int block_id) {
     // Read the data from disk
     int res = fs_seek(block_id);
     if (res == -1) {
-        LOG("Failed to seek for read");
+        LOG_ERROR("Failed to seek for read");
     }
 
     res = read(file_system, block, BLOCK_SIZE);
     if (res == -1) {
-        LOG("Failed to read block %d", block_id);
+        LOG_ERROR("Failed to read block %d", block_id);
     }
 
     // Return the buffer
@@ -184,9 +191,9 @@ unsigned short get_free_block_id() {
     return -1;
 }
 
-bool file_exists(const char* name) {
+int file_inode_id(const char* name) {
     // Walk through the inode list and see if there is a file matching
-    unsigned short* list = (unsigned short*) get_inodes();
+    PtrBlock list = get_inodes();
     for (int i = 0; i < 256; ++i) {
         // Check if the inode is null
         unsigned short block_id = list[i];
@@ -197,15 +204,16 @@ bool file_exists(const char* name) {
         // Load the block and check the filename
         Block block = block_read(block_id);
         INode* inode = (INode*) block;
+
         if (strncmp(inode->name, name, MAX_FILE_NAME_LEN) == 0) {
             free(block);
-            return true;
+            return i;
         }
 
         free(block);
     }
 
-    return false;
+    return -1;
 }
 
 void filesystem_create(const char* name, int size) {
