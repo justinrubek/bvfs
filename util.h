@@ -152,7 +152,7 @@ void inodes_write() {
     block_write(inode_global, INODE_LIST_ID);
 }
 
-void free_inode() {
+void free_inodes() {
     if (inode_global == NULL) return;
 
     free(inode_global);

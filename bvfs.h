@@ -113,19 +113,62 @@ int bv_init(const char* partitionName) {
  */
 int bv_destroy() {
     free_superblock();
+    free_inodes();
     close(file_system);
 }
 
 
-
-
-
-
-
 // Available Modes for bvfs (see bv_open below)
-int BV_RDONLY = 0;
-int BV_WCONCAT = 1;
-int BV_WTRUNC = 2;
+#define BV_RDONLY 0
+#define BV_WCONCAT 1
+#define BV_WTRUNC 2
+// int BV_RDONLY = 0;
+// int BV_WCONCAT = 1;
+// int BV_WTRUNC = 2;
+
+
+int open_read_only(const char* fileName) {
+    // Check if file exists
+    if (file_exists(fileName) == false) {
+        LOG("File %s does not exist", fileName);
+        // If not, create it
+        // Get a block to serve as the inode
+        unsigned short id = get_free_block_id(); 
+        char block[BLOCK_SIZE];
+        LOG("Creating Inode on block %hu", id);
+        create_inode(block, fileName);
+
+        // Find a place in the inode list
+        unsigned short* inodes = get_inodes();
+        for (unsigned short i = 0; i < 256; ++i) {
+            if (inodes[i] == 0) {
+                // There is a null ptr here
+                inodes[i] = id;
+                break;
+            }
+            if (i == 256) {
+            // TODO: Failed to find a spot, too many files already. write error to stderr
+            }
+        }
+        inodes_write();
+
+        block_write(block, id);
+    } else {
+        LOG("File %s does exist", fileName);
+
+    }
+
+}
+
+// TODO: See bv_open
+int open_concat(const char* fileName) {
+
+}
+
+// TODO: See bv_open
+int open_truncate(const char* fileName) {
+
+}
 
 /*
  * int bv_open(const char *fileName, int mode);
@@ -150,37 +193,22 @@ int BV_WTRUNC = 2;
  *           stderr prior to returning.
  */
 
-
 int bv_open(const char *fileName, int mode) {
-    // Check if file exists
-    if (file_exists(fileName) == false) {
-        LOG("File %s does not exist", fileName);
-        // If not, create it
-        // Get a block to serve as the inode
-        unsigned short id = get_free_block_id(); 
-        char block[BLOCK_SIZE];
-        LOG("Creating Inode on block %hu", id);
-        create_inode(block, fileName);
-
-        unsigned short* inodes = get_inodes();
-        for (unsigned short i = 0; i < 256; ++i) {
-            if (inodes[i] == 0) {
-                inodes[i] = id;
-                break;
-            }
-            if (i == 256) {
-            // TODO: Failed to find a spot, too many files already
-            }
-        }
-        inodes_write();
-
-        block_write(block, id);
-
-        // Place the inode id into the inode array
-
-    } else {
-        LOG("File %s does exist", fileName);
-
+    switch (mode) {
+        case BV_RDONLY:
+            return open_read_only(fileName);
+            break;
+        case BV_WCONCAT:
+            return open_concat(fileName);
+            break;
+        case BV_WTRUNC:
+            return open_truncate(fileName);
+            break;
+        default: 
+            // TODO:
+           // eprintf("");
+            return -1;
+            
     }
 }
 
