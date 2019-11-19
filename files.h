@@ -45,13 +45,15 @@ int file_open(unsigned char inode_id, bool read_only) {
         LOG_ERROR(" is already open");
         return -1;
     }
+    file->open = true;
 
     // Get the block the node is located at
     PtrBlock inodes = get_inodes();
     BlockID id = *(inodes + inode_id);
+    LOG("inode_id %u located in block %hu\n", inode_id, id);
 
     // Load the block and check the filename
-    Block block = block_read(id);
+    Block* block = block_read(id);
     file->node = (INode*) block;
     file->read_only = read_only;
 
@@ -60,6 +62,7 @@ int file_open(unsigned char inode_id, bool read_only) {
 }
 
 int file_write(unsigned char inode_id, const void* buffer, int len) {
+    LOG("file_write(%u, .., %d)\n", inode_id, len);
     FileRecord* file = files + inode_id;
 
     if (file->open == false) {
@@ -72,39 +75,54 @@ int file_write(unsigned char inode_id, const void* buffer, int len) {
         return -1;
     }
 
+    printf("inode %u has block_count %hu\n", inode_id, file->node->block_count);
     if (file->node->block_count == 0) {
         // Get an initial block for the file data
-        file->node->blocks[0] = get_free_block_id();
+        BlockID reserved = get_free_block_id();
+        printf("inode %u has no block, reserved %hu\n", inode_id, reserved);
+        file->node->blocks[0] = reserved;
+        file->node->block_count = 1;
     }
 
-    int blocks_to_write = len;
+    int len_written = 0;
 
-    // Determine which block the cursor is currently on
+    LOG("writing for inode_id %u \n", inode_id);
     while (len != 0) {
-        int block_num = file->node->block_count - 1;
-        Block block = block_read(block_num);
+        // Determine which block the cursor is currently on
+        // TODO: Not read from the block count, but the value
+        // in the block array referenced by the count
+        // int block_num = file->node->block_count - 1;
+        int block_index = file->node->block_count - 1;
+        int block_num = file->node->blocks[block_index];
+        LOG(" inode block[%d] is %d\n", block_index, block_num);
+        // Read it in to memory
+        Block* block = block_read(block_num);
 
+        void* block_cursor = block + file->node->block_cursor; 
+        const void* buf_cursor = buffer + len_written;
         // Determine how much space is left in the block
         int space = BLOCK_SIZE - file->node->block_cursor;
         if (space < len) {
-            // This block can't fit it all
-            memcpy(block + file->node->block_cursor, buffer, space);
+            // This block can't fit it all, copy all that can
+            memcpy(block_cursor, buf_cursor, space);
             buffer += space;
             len -= space;
+            len_written += space;
             
-            // Write the data
+            // Write the block data to disk
             block_write(block, block_num);
             // Fetch a new block from the superblock
             file->node->blocks[block_num+1] = get_free_block_id();
             file->node->block_count += 1;
             file->node->block_cursor = 0;
         } else {
-            // This block is sufficient
-            memcpy(block + file->node->block_cursor, buffer, len);
+            // This block is sufficient, copy the data over
+            memcpy(block_cursor, buf_cursor, len);
             buffer += len;
             file->node->block_cursor += len;
+            len_written += len;
 
-            // Write the data
+            // Write the data to disk
             block_write(block, block_num);
             free(block);
             break;
@@ -113,8 +131,11 @@ int file_write(unsigned char inode_id, const void* buffer, int len) {
         free(block);
     }
 
+    // Write the updated inode to disk
+    // FIXME: Inode id is not the same as block id, this will overwrite
+    // the superblock with an inode id of 0
     block_write(file->node, inode_id);
-    return blocks_to_write - len;
+    return len_written;
 }
 
 /*

@@ -26,8 +26,10 @@ typedef struct INode {
     unsigned short block_count;
     unsigned short block_cursor; // Cursor of the farthest block
     unsigned short blocks[FILE_BLOCK_COUNT];
+    char padding[512 - (MAX_FILE_NAME_LEN + 4 + (FILE_BLOCK_COUNT/2))];
 } INode;
 
+// Prepare a portion of memory to be a fresh inode
 void create_inode(void* buf, const char* name) {
     INode* inode = (INode*)buf; 
     strncpy(inode->name, name, MAX_FILE_NAME_LEN);
@@ -37,9 +39,17 @@ void create_inode(void* buf, const char* name) {
     for (int i = 0; i < FILE_BLOCK_COUNT; ++i) {
         inode->blocks[i] = 0;
     }
+    char* padding = inode->padding;
+    for (int i = 0; i < sizeof(inode->padding); ++i) {
+        *(padding+1) = 0;
+    }
+    
 }
 
-typedef char* Block;
+// typedef char* Block;
+typedef struct Block {
+    char bytes[BLOCK_SIZE];
+} Block;
 
 int file_system = -1;
 
@@ -71,13 +81,14 @@ int fs_seek(int block_id) {
     int res = lseek(file_system, position, SEEK_SET);
 
     if (res != position) {
-        LOG_ERROR("Failed to seek\n");
+        LOG_ERROR("Failed to seek for block %d pos %d\n", block_id, position);
         return -1;
     } 
     return res;
 }
 
 int block_write(void* block, int block_id) {
+    LOG("Writing block %d\n", block_id);
     // Seek to the position in our fs
     int res = fs_seek(block_id);
 
@@ -98,9 +109,9 @@ int block_write(void* block, int block_id) {
     return block_id;
 }
 
-Block block_read(int block_id) {
+Block* block_read(int block_id) {
     if (block_id >= BLOCK_COUNT) {
-        // TODO: Make a set of return code definitions in a separate file
+        LOG_ERROR("Tried to read invalid block %hu", block_id);
         return NULL;
     }
     // Allocate memory for the block 
@@ -110,22 +121,24 @@ Block block_read(int block_id) {
     // Read the data from disk
     int res = fs_seek(block_id);
     if (res == -1) {
-        LOG_ERROR("Failed to seek for read");
+        // LOG_ERROR("Failed to seek for read");
+        return NULL;
     }
 
     res = read(file_system, block, BLOCK_SIZE);
     if (res == -1) {
         LOG_ERROR("Failed to read block %d", block_id);
+        return NULL;
     }
 
     // Return the buffer
     return block;
 }
 
-Block superblock_global = NULL;
+Block* superblock_global = NULL;
 // Retrieve the superblock. 
 // Allows us to share the block without worrying who needs to free memory
-Block get_superblock() {
+Block* get_superblock() {
     // Check if we have the superblock currently loaded
     if (superblock_global == NULL) {
         // If not, load it into memory
@@ -143,7 +156,7 @@ void free_superblock() {
     superblock_global = NULL;
 }
 
-Block inode_global = NULL;
+Block* inode_global = NULL;
 unsigned short* get_inodes() {
     // Check if we have the inodes currently loaded
     if (inode_global == NULL) {
@@ -167,16 +180,19 @@ void free_inodes() {
 }
 
 unsigned short get_free_block_id() {
+    LOG("get_free_block_id\n");
     // Walk along the superblock and find a indirection block 
-    Block superblock = get_superblock();
+    PtrBlock superblock = get_superblock();
     for (unsigned short i = 0; i < 256; ++i) {
         if (superblock[i] != 0) {
             // We found a valid indirection block
             // Navigate through indirection to see if there's an address to use
             unsigned short block_id = superblock[i];
-            Block block = block_read(block_id);
+            LOG("Looking at indirection block %hu at block %hu\n", i, block_id);
+            PtrBlock block = block_read(block_id);
             for (unsigned short j = 0; j < 256; ++j) {
                 if (block[j] != 0) {
+                    LOG("Indirection %hu[%hu] = %hu\n", block_id, j, block[j]);
                     unsigned short id = block[j];
                     block[j] = 0; // Ensure this block is not marked as free
                     block_write(block, block_id);
@@ -202,7 +218,7 @@ int file_inode_id(const char* name) {
         }
 
         // Load the block and check the filename
-        Block block = block_read(block_id);
+        Block* block = block_read(block_id);
         INode* inode = (INode*) block;
 
         if (strncmp(inode->name, name, MAX_FILE_NAME_LEN) == 0) {

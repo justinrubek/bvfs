@@ -7,14 +7,14 @@ int main() {
     const char* name = "partition.bvfs";
     bv_init(name);
 
+    bv_ls();
+
     int fd0 = bv_open("pizza.txt", BV_WCONCAT);
     printf("Received fd: %d\n", fd0);
+    int len = bv_write(fd0, "Pizza is amazing", 15);
+    printf("Written %d bytes", len);
 
-    int fd1 = bv_open("pizza2.txt", BV_WCONCAT);
-    printf("Received fd: %d\n", fd1);
 
-    int fd2 = bv_open("pizza3.txt", BV_WCONCAT);
-    printf("Received fd: %d\n", fd2);
     /*
 
     char nums[BLOCK_SIZE];

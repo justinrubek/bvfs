@@ -161,12 +161,11 @@ int open_writeable(const char* fileName, bool truncate) {
                 inodes[i] = id;
                 break;
             }
-            if (i == 256) {
+            if (i == 255) {
                 // TODO: Failed to find a spot, too many files already. write error to stderr
             }
         }
         inodes_write();
-
     }
 
     file_open(id, false);
@@ -214,9 +213,7 @@ int bv_open(const char *fileName, int mode) {
             break;
 
         default: 
-            // TODO:
-            // eprintf("");
-            LOG_ERROR("Invalid mode specified\n");
+            LOG_ERROR("Invalid mode specified: %d\n", mode);
             return -1;
     }
 }
