@@ -148,24 +148,23 @@ int open_writeable(const char* fileName, bool truncate) {
     if (id == -1) {
         // If not, create it
         // Get a block to serve as the inode
-        id = get_free_block_id(); 
-        char block[BLOCK_SIZE];
-        create_inode(block, fileName);
-        block_write(block, id);
+        // Find an inode that is not in use
+        FileRecord* file;
+        for (int i = 0; i < 256; ++i) {
+            file = files + i;        
 
-        // Find a place in the inode list
-        unsigned short* inodes = get_inodes();
-        for (unsigned short i = 0; i < 256; ++i) {
-            if (inodes[i] == 0) {
-                // There is a null ptr here
-                inodes[i] = id;
+            if (file->node->name[0] == '\0') {
+                id = i;
                 break;
             }
-            if (i == 255) {
-                // TODO: Failed to find a spot, too many files already. write error to stderr
-            }
         }
-        inodes_write();
+        if (id == -1) {
+            LOG_ERROR("Maximum number of files reached\n");
+            return -1;
+        }
+        file->node = block_read(id + 1); // Pull in node from disk (should be all 0)
+        create_inode(file->node, fileName); // Populate with data
+        block_write(file->node, id + 1);
     }
 
     file_open(id, false);

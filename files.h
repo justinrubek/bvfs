@@ -22,7 +22,7 @@ void init_file_records() {
         FileRecord* file = files + i;
 
         file->open = false;
-        file->node = NULL;
+        file->node = block_read(i + 1); // Read inode from disk
         file->read_only = true;
     }
 }
@@ -32,6 +32,7 @@ void free_file_records() {
         FileRecord* file = files + i;
 
         if (file->open) {
+            block_write(file->node, i + 1); // Write inode to disk
             free(file->node);
             file->open = false;
         }
@@ -46,17 +47,7 @@ int file_open(unsigned char inode_id, bool read_only) {
         return -1;
     }
     file->open = true;
-
-    // Get the block the node is located at
-    PtrBlock inodes = get_inodes();
-    BlockID id = *(inodes + inode_id);
-    LOG("inode_id %u located in block %hu\n", inode_id, id);
-
-    // Load the block and check the filename
-    Block* block = block_read(id);
-    file->node = (INode*) block;
     file->read_only = read_only;
-
     file->wcursor = 0;
     file->rcursor = 0;
 }
@@ -103,11 +94,13 @@ int file_write(unsigned char inode_id, const void* buffer, int len) {
         // Determine how much space is left in the block
         int space = BLOCK_SIZE - file->node->block_cursor;
         if (space < len) {
+            LOG("Not enough space in this block, must expand\n");
             // This block can't fit it all, copy all that can
             memcpy(block_cursor, buf_cursor, space);
             buffer += space;
             len -= space;
             len_written += space;
+            file->wcursor += space;
             
             // Write the block data to disk
             block_write(block, block_num);
@@ -116,8 +109,10 @@ int file_write(unsigned char inode_id, const void* buffer, int len) {
             file->node->block_count += 1;
             file->node->block_cursor = 0;
         } else {
+            LOG("Copying all data over into block\n");
             // This block is sufficient, copy the data over
             memcpy(block_cursor, buf_cursor, len);
+            file->wcursor += space;
             buffer += len;
             file->node->block_cursor += len;
             len_written += len;
@@ -132,9 +127,7 @@ int file_write(unsigned char inode_id, const void* buffer, int len) {
     }
 
     // Write the updated inode to disk
-    // FIXME: Inode id is not the same as block id, this will overwrite
-    // the superblock with an inode id of 0
-    block_write(file->node, inode_id);
+    // block_write(file->node, inode_id+1);
     return len_written;
 }
 
@@ -157,6 +150,18 @@ bool is_file_open(const char* file_name) {
     }
 
     return false;
+}
+
+int file_inode_id(const char* name) {
+    for (int i = 0; i < 256; ++i) {
+        FileRecord* file = files + i;        
+
+        if (strncmp(name, file->node->name, MAX_FILE_NAME_LEN) == 0) {
+            return 0;
+        }
+    }
+
+    return -1;
 }
  
 #endif /* FILES_H */

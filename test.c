@@ -3,7 +3,6 @@
 #include "bvfs.h"
 
 int main() {
-    printf("%d\n", PARTITION_SIZE);
     const char* name = "partition.bvfs";
     bv_init(name);
 
@@ -11,8 +10,8 @@ int main() {
 
     int fd0 = bv_open("pizza.txt", BV_WCONCAT);
     printf("Received fd: %d\n", fd0);
-    int len = bv_write(fd0, "Pizza is amazing", 15);
-    printf("Written %d bytes", len);
+    int len = bv_write(fd0, "Pizza is amazing ", 15);
+    printf("Written %d bytes\n", len);
 
 
     /*

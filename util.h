@@ -207,31 +207,6 @@ unsigned short get_free_block_id() {
     return -1;
 }
 
-int file_inode_id(const char* name) {
-    // Walk through the inode list and see if there is a file matching
-    PtrBlock list = get_inodes();
-    for (int i = 0; i < 256; ++i) {
-        // Check if the inode is null
-        unsigned short block_id = list[i];
-        if (block_id == 0) {
-            continue;
-        }
-
-        // Load the block and check the filename
-        Block* block = block_read(block_id);
-        INode* inode = (INode*) block;
-
-        if (strncmp(inode->name, name, MAX_FILE_NAME_LEN) == 0) {
-            free(block);
-            return i;
-        }
-
-        free(block);
-    }
-
-    return -1;
-}
-
 void filesystem_create(const char* name, int size) {
     init_file_system(name);
 
@@ -248,12 +223,12 @@ void filesystem_create(const char* name, int size) {
 
     unsigned short currentBlock[256]; // The block we're filling with addresses
     zero_block((char*)currentBlock);
-    int currentBlockId = 2;
+    int currentBlockId = 257;
     int currPos = 0; // position in currentBlock
     int superPos = 0;
 
     LOG("Preparing superblock\n");
-    for (unsigned short i = 3; i < BLOCK_COUNT; ++i) {
+    for (unsigned short i = 258; i < BLOCK_COUNT; ++i) {
         if (currPos == 256) {
             LOG("Block prepared, adding to superblock\n");
             // Write current block and get a new one
@@ -262,7 +237,7 @@ void filesystem_create(const char* name, int size) {
 
             currentBlockId = i++; 
             currPos = 0;
-            zero_block((char*)currentBlock);
+            zero_block(currentBlock);
             // Check if this goes past end
             if (currentBlockId == BLOCK_COUNT) {
                 break;
@@ -275,6 +250,7 @@ void filesystem_create(const char* name, int size) {
 
     block_write(superblock, SUPERBLOCK_ID);
     LOG("Superblock written\n");
+    
 
     // close(file_system);
 }
