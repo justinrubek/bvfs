@@ -108,7 +108,7 @@ int file_write(unsigned char inode_id, const void* buffer, int len) {
             
             // Fetch a new block from the superblock
             file->node->block_count += 1;
-            file->node->blocks[block_num+1] = get_free_block_id();
+            file->node->blocks[block_index + 1] = get_free_block_id();
             file->node->block_cursor = 0;
         } else {
             LOG("Copying all data over into block\n");

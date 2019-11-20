@@ -14,10 +14,9 @@ int main() {
 
     int fd0 = bv_open("pizza.txt", BV_WCONCAT);
     printf("Received fd: %d\n", fd0);
-    int len = bv_write(fd0, "Pizza is amazing ", 17);
-    printf("Written %d bytes\n", len);
-    len = bv_write(fd0, "and so is pizza", 15);
-    printf("Written %d bytes\n", len);
+    int len = bv_write(fd0, "PPizza is amazingPizza is amazingPizza is amazingPizza is amazingPizza is amazingPizza is amazingPizza is amazingPizza is amazingPizza is amazingPizza is amazingPizza is amazingPizza is amazingPizza is amazingPizza is amazingizza is amazing",
+        510);
+    bv_write(fd0, "Second part", 11);
 
 
     /*
