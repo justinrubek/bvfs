@@ -116,7 +116,6 @@ int bv_init(const char* partitionName) {
  */
 int bv_destroy() {
     free_superblock();
-    free_inodes();
     free_file_records();
     close(file_system);
 }

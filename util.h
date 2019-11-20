@@ -11,7 +11,12 @@
 #include <stdio.h>
 #include <string.h>
 
-#define LOG(...) printf(__VA_ARGS__)
+#ifdef DEBUG
+    #define LOG(...) do { } while(1)
+#else
+    #define LOG(...) printf(__VA_ARGS__)
+#endif // NDEBUG
+
 #define LOG_ERROR(...) fprintf(stderr, __VA_ARGS__)
 
 #define SUPERBLOCK_ID 0
@@ -78,6 +83,7 @@ int block_position(int block_id) {
 
 int fs_seek(int block_id) {
     int position = block_position(block_id);
+    LOG("Seeking to %d\n", position);
     int res = lseek(file_system, position, SEEK_SET);
 
     if (res != position) {
@@ -87,9 +93,10 @@ int fs_seek(int block_id) {
     return res;
 }
 
+// Given 512 bytes of data and a block number, seek through the partition and write the block
 int block_write(void* block, int block_id) {
-    LOG("Writing block %d\n", block_id);
-    // Seek to the position in our fs
+    LOG("Writing block %d [%.512s]\n", block_id, block);
+    // Seek to the position of the block in our fs
     int res = fs_seek(block_id);
 
     // Check if it succeeded
@@ -135,6 +142,33 @@ Block* block_read(int block_id) {
     return block;
 }
 
+// Load the block into memory and write the data at a given offset to the block
+int block_write_offset(const char* data, int len, int block_id, int offset) {
+    LOG("block_write_offset(.., %d, %d, %d)\n", len, block_id, offset);
+    if (offset + len > BLOCK_SIZE) {
+        LOG_ERROR("Attempted to write past end of block\n");
+        return -1;
+    }
+
+    // Load the block into memory
+    Block* block = block_read(block_id);
+
+    // Advance our reference to the block so we write to the proper spot
+    void* cursor = block + offset;
+
+    // Perform copy of data
+    for (int i = 0; i < len; ++i) {
+        block->bytes[offset + i] = data[i];
+    }
+
+    // Write the block to disk
+    block_write(block, block_id);
+    free(block);
+
+    return len;
+}
+
+
 Block* superblock_global = NULL;
 // Retrieve the superblock. 
 // Allows us to share the block without worrying who needs to free memory
@@ -154,29 +188,6 @@ void free_superblock() {
 
     free(superblock_global);
     superblock_global = NULL;
-}
-
-Block* inode_global = NULL;
-unsigned short* get_inodes() {
-    // Check if we have the inodes currently loaded
-    if (inode_global == NULL) {
-        // If not, load it into memory
-        inode_global = block_read(INODE_LIST_ID);
-    }
-
-    // Finally, return it
-    return inode_global;
-}
-
-void inodes_write() {
-    block_write(inode_global, INODE_LIST_ID);
-}
-
-void free_inodes() {
-    if (inode_global == NULL) return;
-
-    free(inode_global);
-    inode_global = NULL;
 }
 
 unsigned short get_free_block_id() {

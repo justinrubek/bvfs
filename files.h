@@ -52,6 +52,14 @@ int file_open(unsigned char inode_id, bool read_only) {
     file->rcursor = 0;
 }
 
+void print_inode(INode* node) {
+    printf("INode{\n");
+    printf("    name %s\n", node->name);
+    printf("    block_count %hu\n", node->block_count);
+    printf("    block_cursor %hu\n", node->block_cursor);
+    printf("}\n");
+}
+
 int file_write(unsigned char inode_id, const void* buffer, int len) {
     LOG("file_write(%u, .., %d)\n", inode_id, len);
     FileRecord* file = files + inode_id;
@@ -79,6 +87,7 @@ int file_write(unsigned char inode_id, const void* buffer, int len) {
 
     LOG("writing for inode_id %u \n", inode_id);
     while (len != 0) {
+        print_inode(file->node);
         // Determine which block the cursor is currently on
         // TODO: Not read from the block count, but the value
         // in the block array referenced by the count
@@ -86,48 +95,34 @@ int file_write(unsigned char inode_id, const void* buffer, int len) {
         int block_index = file->node->block_count - 1;
         int block_num = file->node->blocks[block_index];
         LOG(" inode block[%d] is %d\n", block_index, block_num);
-        // Read it in to memory
-        Block* block = block_read(block_num);
 
-        void* block_cursor = block + file->node->block_cursor; 
         const void* buf_cursor = buffer + len_written;
         // Determine how much space is left in the block
         int space = BLOCK_SIZE - file->node->block_cursor;
         if (space < len) {
             LOG("Not enough space in this block, must expand\n");
             // This block can't fit it all, copy all that can
-            memcpy(block_cursor, buf_cursor, space);
-            buffer += space;
+            block_write_offset(buf_cursor, space, block_num, file->node->block_cursor);
             len -= space;
             len_written += space;
-            file->wcursor += space;
             
-            // Write the block data to disk
-            block_write(block, block_num);
             // Fetch a new block from the superblock
-            file->node->blocks[block_num+1] = get_free_block_id();
             file->node->block_count += 1;
+            file->node->blocks[block_num+1] = get_free_block_id();
             file->node->block_cursor = 0;
         } else {
             LOG("Copying all data over into block\n");
             // This block is sufficient, copy the data over
-            memcpy(block_cursor, buf_cursor, len);
-            file->wcursor += space;
-            buffer += len;
+            block_write_offset(buf_cursor, len, block_num, file->node->block_cursor);
+            // Keep track of how much we've written
             file->node->block_cursor += len;
             len_written += len;
-
-            // Write the data to disk
-            block_write(block, block_num);
-            free(block);
-            break;
+            len = 0;
         }
-
-        free(block);
     }
 
     // Write the updated inode to disk
-    // block_write(file->node, inode_id+1);
+    block_write(file->node, inode_id+1);
     return len_written;
 }
 
