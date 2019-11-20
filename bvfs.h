@@ -79,16 +79,12 @@ FILE* partition_fd = NULL;
 int bv_init(const char* partitionName) {
     if (access(partitionName, F_OK) != -1) {
         // Exists
-        LOG("File exists\n");
+        LOG("Partition file exists\n");
         open_file_system(partitionName);
-        // TODO: Check if failed to open file
-        printf("%d\n", file_system);
     } else {
-        LOG("Creating file\n");
+        LOG("Creating partition file\n");
         // Needs to be created
         filesystem_create(partitionName, PARTITION_SIZE);
-        // TODO: Check if failed to create filesystem
-        printf("%d\n", file_system);
     }
 
     init_file_records();
@@ -122,6 +118,7 @@ int bv_destroy() {
 
 
 // Available Modes for bvfs (see bv_open below)
+// Changing these to macros so I can use them in a switch statement as C doesn't support constexpr
 #define BV_RDONLY 0
 #define BV_WCONCAT 1
 #define BV_WTRUNC 2
@@ -145,8 +142,9 @@ int open_read_only(const char* fileName) {
 int open_writeable(const char* fileName, bool truncate) {
     int id = file_inode_id(fileName);
 
-    if (truncate && id != -1) {
-        // TODO: unlink file
+    if (id != -1 && truncate) {
+        // Remove file contents so it is treated as a new file
+        file_unlink(id);
     }
 
     if (id == -1) {
@@ -166,14 +164,12 @@ int open_writeable(const char* fileName, bool truncate) {
             LOG_ERROR("Maximum number of files reached\n");
             return -1;
         }
-        file->node = block_read(id + 1); // Pull in node from disk (should be all 0)
+        file->node = (INode*) block_read(id + 1); // Pull in node from disk (should be all 0)
         create_inode(file->node, fileName); // Populate with data
         block_write(file->node, id + 1);
     }
 
-    file_open(id, false);
-
-    return id;
+    return file_open(id, false);
 }
 
 /*
@@ -241,8 +237,15 @@ int bv_open(const char *fileName, int mode) {
  */
 int bv_close(int bvfs_FD) {
     FileRecord* file = files + bvfs_FD;
+    
+    if (file->open == false) {
+        LOG_ERROR("Can't close a file that isn't open\n");
+        return -1;
+    }
+
     block_write(file->node, bvfs_FD + 1);
     file->open = false;
+    return 0;
 }
 
 
@@ -320,6 +323,8 @@ int bv_read(int bvfs_FD, void *buf, size_t count) {
  *           Also, print a meaningful error to stderr prior to returning.
  */
 int bv_unlink(const char* fileName) {
+    int id = file_inode_id(fileName);
+    return file_unlink(id);
 }
 
 
@@ -355,4 +360,33 @@ int bv_unlink(const char* fileName) {
  *   void
  */
 void bv_ls() {
+    // Obtain and print the file count
+    int file_count = 0;
+    for (int i = 0; i < 256; ++i) {
+        FileRecord* file = files + i;        
+
+        if (strncmp("", file->node->name, MAX_FILE_NAME_LEN) != 0) {
+            file_count++;
+        }
+    }
+    printf("%d Files\n", file_count);
+
+    // Print detailed info for each node
+    for (int i = 0; i < 256; ++i) {
+        FileRecord* file = files + i;        
+
+        // Ignore empty file names
+        if (strncmp("", file->node->name, MAX_FILE_NAME_LEN) == 0) {
+            continue;
+        }
+
+        // Perform calculations needed to display info
+        int num_bytes = file->node->block_count * BLOCK_SIZE + file->node->block_cursor;
+
+        // Print out the info for this node
+        printf("bytes: %d, ", num_bytes);
+        printf("blocks: %d, ", file->node->block_count);
+        // printf("%.24s, ", timestamp);
+        printf("%s\n", file->node->name);
+    }
 }

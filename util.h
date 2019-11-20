@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#ifdef DEBUG
+#ifndef DEBUG
     #define LOG(...) do { } while(0)
 #else
     #define LOG(...) printf(__VA_ARGS__)
@@ -26,6 +26,7 @@ typedef unsigned short* PtrBlock;
 typedef unsigned short BlockID;
 
 
+// TODO: Add timestamp and adjust size of padding accordingly
 typedef struct INode {
     char name[MAX_FILE_NAME_LEN];
     unsigned short block_count;
@@ -51,13 +52,14 @@ void create_inode(void* buf, const char* name) {
     
 }
 
-// typedef char* Block;
+// Global file descriptor of our partition
+int file_system = -1;
+
 typedef struct Block {
     char bytes[BLOCK_SIZE];
 } Block;
 
-int file_system = -1;
-
+// Set all values in a block-sized piece of memory to 0
 void zero_block(void* block) {
     char* bytes = (char*) block;
     for (int i = 0; i < BLOCK_SIZE; ++i) {
@@ -77,10 +79,12 @@ void open_file_system(const char* name) {
     // TODO: Report error
 }
 
+// Calculate where in the partition the block exists
 int block_position(int block_id) {
     return block_id * BLOCK_SIZE;
 }
 
+// Seek to the start of a block in our partition
 int fs_seek(int block_id) {
     int position = block_position(block_id);
     LOG("Seeking to %d\n", position);
@@ -111,11 +115,11 @@ int block_write(void* block, int block_id) {
         return errno;
     }
 
-    // TODO: Clean up block memory?
     // TODO: Should we return something different?
     return block_id;
 }
 
+// Retrieve a heap allocated buffer to the data contained by the block
 Block* block_read(int block_id) {
     if (block_id >= BLOCK_COUNT) {
         LOG_ERROR("Tried to read invalid block %hu", block_id);
@@ -139,10 +143,11 @@ Block* block_read(int block_id) {
     }
 
     // Return the buffer
-    return block;
+    return (Block*)block;
 }
 
 // Load the block into memory and write the data at a given offset to the block
+// Use this to avoid having the manually load in the block before copying data
 int block_write_offset(const char* data, int len, int block_id, int offset) {
     LOG("block_write_offset(.., %d, %d, %d)\n", len, block_id, offset);
     if (offset + len > BLOCK_SIZE) {
@@ -190,20 +195,20 @@ void free_superblock() {
     superblock_global = NULL;
 }
 
+// Walk through the superblock structure and find a free block to use, removing it from the structure
 unsigned short get_free_block_id() {
-    LOG("get_free_block_id\n");
     // Walk along the superblock and find a indirection block 
-    PtrBlock superblock = get_superblock();
+    PtrBlock superblock = (PtrBlock) get_superblock();
     for (unsigned short i = 0; i < 256; ++i) {
         if (superblock[i] != 0) {
             // We found a valid indirection block
             // Navigate through indirection to see if there's an address to use
             unsigned short block_id = superblock[i];
             LOG("Looking at indirection block %hu at block %hu\n", i, block_id);
-            PtrBlock block = block_read(block_id);
+            PtrBlock block = (PtrBlock) block_read(block_id);
             for (unsigned short j = 0; j < 256; ++j) {
                 if (block[j] != 0) {
-                    LOG("Indirection %hu[%hu] = %hu\n", block_id, j, block[j]);
+                    LOG("   Found free block: indirection %hu[%hu] = %hu\n", block_id, j, block[j]);
                     unsigned short id = block[j];
                     block[j] = 0; // Ensure this block is not marked as free
                     block_write(block, block_id);
@@ -218,6 +223,7 @@ unsigned short get_free_block_id() {
     return -1;
 }
 
+// Create the partition and add initial metadata
 void filesystem_create(const char* name, int size) {
     init_file_system(name);
 
@@ -238,10 +244,9 @@ void filesystem_create(const char* name, int size) {
     int currPos = 0; // position in currentBlock
     int superPos = 0;
 
-    LOG("Preparing superblock\n");
     for (unsigned short i = 258; i < BLOCK_COUNT; ++i) {
         if (currPos == 256) {
-            LOG("Block prepared, adding to superblock\n");
+            // LOG("Block prepared, adding to superblock\n");
             // Write current block and get a new one
             block_write(currentBlock, currentBlockId);
             superblock[superPos++] = currentBlockId;
@@ -255,12 +260,12 @@ void filesystem_create(const char* name, int size) {
             }
         }
 
-        LOG("Block %hu referencing %hu\n", currentBlockId, i);
+        // LOG("Block %hu referencing %hu\n", currentBlockId, i);
         currentBlock[currPos++] = i;
     }
 
     block_write(superblock, SUPERBLOCK_ID);
-    LOG("Superblock written\n");
+    // LOG("Superblock written\n");
     
 
     // close(file_system);

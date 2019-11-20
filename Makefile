@@ -1,25 +1,12 @@
-# Name of executable. Matches name of file containing main
-EXE=test
+CXX=g++ -std=c++17 -g -w -fmax-errors=1 -m32
 
-# Update with header files used. Recompiles when they change
-DEPS = bvfs.h util.h files.h
+bvfs_tester: bvfs_tester.cpp bvfs.h util.h files.h
+	${CXX} bvfs_tester.cpp -o bvfs_tester
 
-# Update with code files used (replace '.c' with '.o')
-OBJ = $(EXE).o
+run: bvfs_tester
+	./bvfs_tester $(args)
 
-CC=gcc 
-LIBS=-lpthread
-CFLAGS=-g --std=c11 $(LIBS)
-
-%.o: %.c $(DEPS)
-	$(CC) -c -o $@ $< $(CFLAGS)
-
-$(EXE): $(OBJ)
-	$(CC) -o $@ $< $(CFLAGS)
-
-run: $(EXE)
-	./$(EXE) $(args)
 
 clean:
-	rm -f $(OBJ)
-	rm -f $(EXE)
+	@echo "Cleaning..."
+	rm -f bvfs_tester
