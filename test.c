@@ -5,6 +5,7 @@
 #define DEBUG
 
 int main() {
+    LOG("Logging enabled\n");
     const char* name = "partition.bvfs";
     bv_init(name);
 
@@ -12,12 +13,18 @@ int main() {
 
 //    block_write_offset("pizza is the best", 17, 1, 5);
 
+    /*
     int fd0 = bv_open("pizza.txt", BV_WCONCAT);
     printf("Received fd: %d\n", fd0);
     int len = bv_write(fd0, "PPizza is amazingPizza is amazingPizza is amazingPizza is amazingPizza is amazingPizza is amazingPizza is amazingPizza is amazingPizza is amazingPizza is amazingPizza is amazingPizza is amazingPizza is amazingPizza is amazingizza is amazing",
         510);
     bv_write(fd0, "Second part", 11);
+    */
 
+    int fd = bv_open("pizza.txt", BV_RDONLY);
+    char buf[550];
+    bv_read(fd, buf, 520);
+    printf("Data: [%.520s]\n", buf);
 
     /*
 

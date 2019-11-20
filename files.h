@@ -9,9 +9,7 @@ typedef struct FileRecord {
     INode* node;
     bool read_only;
 
-    int wcursor;
-    int rcursor;
-    
+    int cursor; // Cursor for reading
 } FileRecord;
 
 // Keep track of open files
@@ -48,8 +46,7 @@ int file_open(unsigned char inode_id, bool read_only) {
     }
     file->open = true;
     file->read_only = read_only;
-    file->wcursor = 0;
-    file->rcursor = 0;
+    file->cursor = 0;
 }
 
 void print_inode(INode* node) {
@@ -58,6 +55,68 @@ void print_inode(INode* node) {
     printf("    block_count %hu\n", node->block_count);
     printf("    block_cursor %hu\n", node->block_cursor);
     printf("}\n");
+}
+
+int file_read(unsigned char inode_id, void* buffer, int len) {
+    LOG("file_read(%u, .., %d)\n", inode_id, len);
+    FileRecord* file = files + inode_id;
+
+    if (file->open == false) {
+        LOG_ERROR("File %hu not open\n", inode_id);
+        return -1;
+    }
+
+    if (file->node->block_count == 0
+        || (file->node->block_count == 1 && file->node->block_cursor == 0) ) {
+        // No data to be had
+        return 0;
+    }
+
+    int len_read = 0;
+
+    while (len_read != len) {
+        // Determine which block the cursor is currently on
+        // TODO: Not read from the block count, but the value
+        // in the block array referenced by the count
+        // int block_num = file->node->block_count - 1;
+        int block_index = file->cursor / BLOCK_SIZE;
+        int block_num = file->node->blocks[block_index];
+
+        const void* buf_cursor = buffer + len_read;
+        // Determine how much space is left in the block
+        int block_cursor = file->cursor % BLOCK_SIZE;
+        int space = BLOCK_SIZE - block_cursor;
+
+        Block* block = block_read(block_num);
+
+        if (space < len - len_read) {
+            LOG("Not enough data in this block %d leaves only %d\n", file->cursor, space);
+            memcpy(buf_cursor, block->bytes + block_cursor, space);
+            len_read += space;
+            file->cursor += space;
+            
+        } else {
+            LOG("Copying all data over into block\n");
+            memcpy(buf_cursor, block->bytes + block_cursor, len - len_read);
+            // Keep track of how much we've read
+            len_read = len;
+            file->cursor += len - len_read;
+        }
+
+        free(block);
+    }
+
+    return len_read;
+
+}
+
+void inode_write(unsigned char inode_id) {
+    INode* node = (files + inode_id)->node;
+
+    // TODO: Update the timestamp
+
+    // Write to disk
+    block_write(node, inode_id + 1);
 }
 
 int file_write(unsigned char inode_id, const void* buffer, int len) {
@@ -122,7 +181,8 @@ int file_write(unsigned char inode_id, const void* buffer, int len) {
     }
 
     // Write the updated inode to disk
-    block_write(file->node, inode_id+1);
+    inode_write(inode_id + 1);
+    // block_write(file->node, inode_id+1);
     return len_written;
 }
 

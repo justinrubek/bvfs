@@ -144,6 +144,11 @@ int open_read_only(const char* fileName) {
 
 int open_writeable(const char* fileName, bool truncate) {
     int id = file_inode_id(fileName);
+
+    if (truncate && id != -1) {
+        // TODO: unlink file
+    }
+
     if (id == -1) {
         // If not, create it
         // Get a block to serve as the inode
@@ -167,10 +172,6 @@ int open_writeable(const char* fileName, bool truncate) {
     }
 
     file_open(id, false);
-
-    if (truncate) {
-        // TODO: Delete data from file
-    }
 
     return id;
 }
@@ -239,6 +240,9 @@ int bv_open(const char *fileName, int mode) {
  *           prior to returning.
  */
 int bv_close(int bvfs_FD) {
+    FileRecord* file = files + bvfs_FD;
+    block_write(file->node, bvfs_FD + 1);
+    file->open = false;
 }
 
 
@@ -291,6 +295,7 @@ int bv_write(int bvfs_FD, const void *buf, size_t count) {
  *           prior to returning.
  */
 int bv_read(int bvfs_FD, void *buf, size_t count) {
+    file_read(bvfs_FD, buf, count);
 }
 
 

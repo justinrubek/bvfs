@@ -12,10 +12,10 @@
 #include <string.h>
 
 #ifdef DEBUG
-    #define LOG(...) do { } while(1)
+    #define LOG(...) do { } while(0)
 #else
     #define LOG(...) printf(__VA_ARGS__)
-#endif // NDEBUG
+#endif // DEBUG
 
 #define LOG_ERROR(...) fprintf(stderr, __VA_ARGS__)
 
@@ -95,7 +95,7 @@ int fs_seek(int block_id) {
 
 // Given 512 bytes of data and a block number, seek through the partition and write the block
 int block_write(void* block, int block_id) {
-    LOG("Writing block %d [%.512s]\n", block_id, block);
+    LOG("Writing block %d\n", block_id);
     // Seek to the position of the block in our fs
     int res = fs_seek(block_id);
 
