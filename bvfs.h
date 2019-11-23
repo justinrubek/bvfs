@@ -50,9 +50,6 @@ int bv_unlink(const char* fileName);
 void bv_ls();
 
 
-FILE* partition_fd = NULL;
-
-
 /*
  * int bv_init(const char *fs_fileName);
  *
@@ -91,11 +88,6 @@ int bv_init(const char* partitionName) {
 
     return 0;
 }
-
-
-
-
-
 
 /*
  * int bv_destroy();
@@ -169,6 +161,7 @@ int open_writeable(const char* fileName, bool truncate) {
         block_write(file->node, id + 1);
     }
 
+
     return file_open(id, false);
 }
 
@@ -213,11 +206,6 @@ int bv_open(const char *fileName, int mode) {
     }
 }
 
-
-
-
-
-
 /*
  * int bv_close(int bvfs_FD);
  *
@@ -247,12 +235,6 @@ int bv_close(int bvfs_FD) {
     file->open = false;
     return 0;
 }
-
-
-
-
-
-
 
 /*
  * int bv_write(int bvfs_FD, const void *buf, size_t count);
@@ -386,7 +368,7 @@ void bv_ls() {
         // Print out the info for this node
         printf("bytes: %d, ", num_bytes);
         printf("blocks: %d, ", file->node->block_count);
-        // printf("%.24s, ", timestamp);
+        // printf("%.24s, ", file->node->timestamp);
         printf("%s\n", file->node->name);
     }
 }

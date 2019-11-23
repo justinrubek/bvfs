@@ -43,8 +43,6 @@ void free_file_records() {
 void inode_write(unsigned char inode_id) {
     INode* node = (files + inode_id)->node;
 
-    // TODO: Update the timestamp
-
     // Write to disk
     block_write(node, inode_id + 1);
 }
@@ -111,9 +109,6 @@ int file_read(unsigned char inode_id, void* buffer, int len) {
         }
 
         // Determine which block the cursor is currently on
-        // TODO: Not read from the block count, but the value
-        // in the block array referenced by the count
-        // int block_num = file->node->block_count - 1;
         int block_index = file->cursor / BLOCK_SIZE;
         int block_num = file->node->blocks[block_index];
 
@@ -174,11 +169,8 @@ int file_write(unsigned char inode_id, const void* buffer, int len) {
 
     LOG("writing for inode_id %u \n", inode_id);
     while (len != 0) {
-        // print_inode(file->node);
+        // LOG_FUNC(print_inode(file->node));
         // Determine which block the cursor is currently on
-        // TODO: Not read from the block count, but the value
-        // in the block array referenced by the count
-        // int block_num = file->node->block_count - 1;
         int block_index = file->node->block_count - 1;
         int block_num = file->node->blocks[block_index];
         LOG(" inode block[%d] is %d\n", block_index, block_num);
@@ -208,6 +200,9 @@ int file_write(unsigned char inode_id, const void* buffer, int len) {
         }
     }
 
+    // Update the timestamp on inode
+    file->node->timestamp = time(NULL);
+
     // Write the updated inode to disk
     inode_write(inode_id);
     // inode_write(inode_id + 1);
@@ -222,7 +217,7 @@ int file_inode_id(const char* name) {
         FileRecord* file = files + i;        
 
         if (strncmp(name, file->node->name, MAX_FILE_NAME_LEN) == 0) {
-            return 0;
+            return i;
         }
     }
 
