@@ -364,12 +364,18 @@ void bv_ls() {
         }
 
         // Perform calculations needed to display info
-        int num_bytes = (file->node->block_count-1) * BLOCK_SIZE + file->node->block_cursor;
+        int num_bytes;
+        if (file->node->block_count == 0) {
+            num_bytes = 0;
+        } else {
+            num_bytes = (file->node->block_count-1) * BLOCK_SIZE
+                        + file->node->block_cursor;
+        }
 
         // Print out the info for this node
         printf("bytes: %d, ", num_bytes);
         printf("blocks: %d, ", file->node->block_count);
-        // printf("%.24s, ", file->node->timestamp);
+        printf("%.24s, ", ctime(&file->node->timestamp));
         printf("%s\n", file->node->name);
     }
 }
