@@ -88,7 +88,7 @@ int block_position(int block_id) {
 // Seek to the start of a block in our partition
 int fs_seek(int block_id) {
     int position = block_position(block_id);
-    LOG("Seeking to %d\n", position);
+    // LOG("Seeking to %d\n", position);
     int res = lseek(file_system, position, SEEK_SET);
 
     if (res != position) {
@@ -214,13 +214,13 @@ void free_superblock() {
 
 // Walk through a superblock indirection block to find a free space
 BlockID get_free_block_id_progress(int index) {
-    printf("Looking at indirection block %d\n", index);
+    LOG("Looking at indirection block %d\n", index);
     PtrBlock block = (PtrBlock) block_read(index);
     for (int i = 0; i < 256; ++i) {
         BlockID id = block[i];
 
         if (id != 0) {
-            LOG("   Found free block: indirection %hu[%d] = %hu\n", index, i, id);
+            // LOG("   Found free block: indirection %hu[%d] = %hu\n", index, i, id);
             block[i] = 0; // Ensure this block is not marked as free
             block_write(block, index);
             free(block);
@@ -235,12 +235,12 @@ BlockID get_free_block_id_progress(int index) {
 
 // Walk through the superblock structure and find a free block to use, removing it from the structure
 BlockID get_free_block_id() {
-    printf("get_free_block_id()\n");
+    LOG("get_free_block_id()\n");
     // Walk along the superblock and find a indirection block 
     PtrBlock superblock = (PtrBlock) get_superblock();
     for (int i = 0; i < 256; ++i) {
         BlockID sid = superblock[i];
-        LOG(" sid = %hu\n", sid);
+        // LOG(" sid = %hu\n", sid);
 
         // We found a valid indirection block
         if (sid != 0) {
@@ -350,7 +350,7 @@ void filesystem_create(const char* name, int size) {
     for (int i = 258; i < BLOCK_COUNT; ++i) {
         if (currPos == 256) {
             // Write current block and get a new one
-            LOG("superblock[%d] = %hu\n", superPos, currentBlockId);
+            // LOG("superblock[%d] = %hu\n", superPos, currentBlockId);
             block_write(currentBlock, currentBlockId);
             superblock[superPos++] = currentBlockId;
 

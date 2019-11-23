@@ -123,7 +123,7 @@ int open_read_only(const char* fileName) {
     // Check if file exists
     int id = file_inode_id(fileName);
     if (id == -1) {
-        LOG_ERROR("File %hu does not exist", id);
+        LOG_ERROR("File %s does not exist", fileName);
     } 
 
     file_open(id, true);
@@ -137,6 +137,7 @@ int open_writeable(const char* fileName, bool truncate) {
     if (id != -1 && truncate) {
         // Remove file contents so it is treated as a new file
         file_unlink(id);
+        id = -1; // Ensure the inode is created from scratch
     }
 
     if (id == -1) {
@@ -363,7 +364,7 @@ void bv_ls() {
         }
 
         // Perform calculations needed to display info
-        int num_bytes = file->node->block_count * BLOCK_SIZE + file->node->block_cursor;
+        int num_bytes = (file->node->block_count-1) * BLOCK_SIZE + file->node->block_cursor;
 
         // Print out the info for this node
         printf("bytes: %d, ", num_bytes);

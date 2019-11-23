@@ -358,7 +358,6 @@ vector<void (*)()> testSuite {
     redirectOutput();
     bv_ls();
     string output = restoreOutput();
-
     if (output.size() == 0)
       die("bv_ls is not producing output");
     if (output.find("0 File") == string::npos)
@@ -379,6 +378,7 @@ vector<void (*)()> testSuite {
     int fd = OPEN("somefile.data", BV_WCONCAT);
     WRITE(fd, inData, sizeof(inData));
     CLOSE(fd);
+
 
     redirectOutput();
     bv_ls();

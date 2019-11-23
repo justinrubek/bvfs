@@ -56,6 +56,14 @@ int file_unlink(unsigned char inode_id) {
 
     FileRecord* file = files + inode_id;
     // TODO: Add all blocks belonging to this file back into the superblock pool
+    for (int i = 0; i < file->node->block_count; ++i) {
+        BlockID id = file->node->blocks[i];
+
+        bool res = free_disk_block(id);
+        if (res == false) {
+            return -1;
+        }
+    }
 
     // Finally, write an empty string to the file name to denote the file not existing
     create_inode(file->node, "");
@@ -77,7 +85,7 @@ int file_open(unsigned char inode_id, bool read_only) {
     file->read_only = read_only;
     file->cursor = 0;
 
-    return 0;
+    return inode_id;
 }
 
 // Read bytes into a given buffer
@@ -138,7 +146,6 @@ int file_read(unsigned char inode_id, void* buffer, int len) {
 
     LOG("/file_read(%u, .., %d)\n", inode_id, len);
     return len_read;
-
 }
 
 // Write to disk from a given buffer
